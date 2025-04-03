@@ -1,32 +1,22 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net"
+	"net/http"
 
 	"github.com/CodexRodney/WeStreamBackend/internal/rooms"
 )
 
 func main() {
-	addr, err := net.ResolveTCPAddr("tcp", ":8000")
-	if err != nil {
-		log.Fatal(err)
-	}
-	ln, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer ln.Close()
-	fmt.Println("Listening on port 8000")
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			log.Fatal(err)
-		}
-		// add client to list of clients
-		rooms.Clients = append(rooms.Clients, conn)
+	setupAPI()
+	// Serve on port :8080, fudge yeah hardcoded port
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
 
-		go rooms.HandleClientConn(conn)
-	}
+// setupAPI will start all Routes and their Handlers
+func setupAPI() {
+	manager := rooms.NewManager()
+
+	// Serve the ./public directory at Route
+	http.Handle("/ws", http.HandlerFunc(manager.ServeWS))
 }
