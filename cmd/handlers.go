@@ -34,7 +34,6 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 	// get a users room
 	vars := mux.Vars(r)
 	roomId, err := strconv.ParseUint(vars["room"], 10, 64)
-	log.Println(roomId)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
@@ -54,4 +53,51 @@ func JoinRoom(w http.ResponseWriter, r *http.Request) {
 	room.AddViberToRoom(viber)
 	go viber.ReadMessages()
 	go viber.WriteMessages()
+}
+
+// used to upload a music file to a specific room
+func UploadMusicFile(w http.ResponseWriter, r *http.Request) {
+
+	roomId, err := strconv.ParseUint(r.FormValue("room_id"), 10, 64)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	room, ok := rooms.AvailableRooms[roomId]
+	if !ok {
+		respondWithError(w, http.StatusBadRequest, "Room Doesn't Exist")
+		return
+	}
+
+	file, _, err := r.FormFile("music_file")
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	defer file.Close()
+
+	// getting songs metadata
+	durationSecs, err := strconv.ParseInt(
+		r.FormValue("duration_seconds"),
+		10,
+		64,
+	)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	title := r.FormValue("title")
+	artist := r.FormValue("artist")
+	if title == "" || artist == "" {
+		respondWithError(w, http.StatusBadRequest, "Missing title or artist")
+		return
+	}
+
+	room.AddMusicToRoom(
+		rooms.SetMusic(title, durationSecs, artist, file),
+	)
+
+	respondWithJSON(w, http.StatusCreated, map[string]string{"Good": "good"})
 }

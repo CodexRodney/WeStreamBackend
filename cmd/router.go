@@ -10,6 +10,7 @@ func NewRouter() *mux.Router {
 
 	router.HandleFunc("/create-room", CreateRoom).Methods("POST")
 	router.HandleFunc("/join-room/{room}", JoinRoom)
+	router.HandleFunc("/upload-music", UploadMusicFile).Methods("POST")
 
 	return router
 }

@@ -16,6 +16,7 @@ type NotifyEvent struct {
 type Room struct {
 	Id     uint64
 	vibers VibersList
+	musics []Music
 	sync.RWMutex
 	notifyChan chan NotifyEvent
 }
@@ -29,10 +30,23 @@ func NewRoom() *Room {
 	r := &Room{
 		Id:         rand.Uint64(),
 		vibers:     make(VibersList),
+		musics:     make([]Music, 0),
 		notifyChan: make(chan NotifyEvent),
 	}
 	go r.notifyOtherVibersInRoom()
 	return r
+}
+
+// add music to a room
+func (r *Room) AddMusicToRoom(music Music) {
+	r.Lock()
+	defer r.Unlock()
+	r.musics = append(r.musics, music)
+}
+
+// return musics in a room
+func (r *Room) GetMusicsFromRoom() []Music {
+	return r.musics
 }
 
 // otherVibersInRoom returns a slice of vibers in a specific room excluding the provided .
