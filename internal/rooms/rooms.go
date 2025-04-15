@@ -1,6 +1,8 @@
 package rooms
 
 import (
+	"io"
+	"log"
 	"math/rand"
 	"sync"
 )
@@ -18,7 +20,8 @@ type Room struct {
 	vibers VibersList
 	musics []Music
 	sync.RWMutex
-	notifyChan chan NotifyEvent
+	notifyChan      chan NotifyEvent
+	musicNotifyChan chan NotifyEvent
 }
 
 // holds a list of created rooms
@@ -28,12 +31,14 @@ var AvailableRooms = make(map[uint64]*Room)
 // and starts the goroutine responsible for notifying other clients.
 func NewRoom() *Room {
 	r := &Room{
-		Id:         rand.Uint64(),
-		vibers:     make(VibersList),
-		musics:     make([]Music, 0),
-		notifyChan: make(chan NotifyEvent),
+		Id:              rand.Uint64(),
+		vibers:          make(VibersList),
+		musics:          make([]Music, 0),
+		notifyChan:      make(chan NotifyEvent),
+		musicNotifyChan: make(chan NotifyEvent),
 	}
 	go r.notifyOtherVibersInRoom()
+	go r.streamMusicToAll()
 	return r
 }
 
@@ -58,6 +63,44 @@ func (r *Room) otherVibersInRoom(viber *Viber) []*Viber {
 		}
 	}
 	return viberList
+}
+
+func (r *Room) streamMusicToAll() {
+	for {
+		select {
+		case e := <-r.musicNotifyChan:
+			log.Println("Got Message: ", e.message)
+			// check commands like play pause skip
+			if e.message == "play" {
+				// looping through all songs
+				for _, music := range r.musics {
+					log.Print("Gor here")
+					buffer := make([]byte, 4096)
+					for {
+						n, err := music.GetMusicFile().Read(buffer)
+						if err == io.EOF {
+							break
+						}
+						if err != nil {
+							log.Println(err)
+							continue
+						}
+						if n > 0 {
+							// send to all clients read bytes
+							for v, c := range r.vibers {
+								if c {
+									// v.musicConn.WriteMessage(websocket.BinaryMessage, buffer[:n])
+									v.musicChan <- buffer[:n]
+
+								}
+							}
+						}
+					}
+					// notify users that there is a new song
+				}
+			}
+		}
+	}
 }
 
 // notifyOtherVibersInRoom waits for notify events and broadcasts the message

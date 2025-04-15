@@ -1,5 +1,5 @@
 package cmd
 
 type CreateRoomSerializer struct {
-	Id uint64
+	Id string
 }
