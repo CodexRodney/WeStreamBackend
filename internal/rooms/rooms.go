@@ -17,6 +17,7 @@ type NotifyEvent struct {
 type EventNotify struct {
 	eventType string
 	viber     *Viber
+	payload   interface{}
 }
 
 type EventNotifyPayload struct {
@@ -28,7 +29,8 @@ type EventNotifyPayload struct {
 type Room struct {
 	Id     uint64
 	vibers VibersList
-	musics []Music
+	// change in future to pointers
+	musics []*Music
 	sync.RWMutex
 	notifyChan      chan NotifyEvent
 	musicNotifyChan chan NotifyEvent
@@ -44,7 +46,7 @@ func NewRoom() *Room {
 	r := &Room{
 		Id:              rand.Uint64(),
 		vibers:          make(VibersList),
-		musics:          make([]Music, 0),
+		musics:          make([]*Music, 0),
 		notifyChan:      make(chan NotifyEvent),
 		musicNotifyChan: make(chan NotifyEvent),
 		eventNotifyChan: make(chan EventNotify),
@@ -56,14 +58,21 @@ func NewRoom() *Room {
 }
 
 // add music to a room
-func (r *Room) AddMusicToRoom(music Music) {
+func (r *Room) AddMusicToRoom(music *Music, viber *Viber) {
 	r.Lock()
 	defer r.Unlock()
 	r.musics = append(r.musics, music)
+	// notify other people about music being added
+	r.eventNotifyChan <- EventNotify{
+		eventType: "added_music",
+		viber:     viber,
+		payload:   music,
+	}
+
 }
 
 // return musics in a room
-func (r *Room) GetMusicsFromRoom() []Music {
+func (r *Room) GetMusicsFromRoom() []*Music {
 	return r.musics
 }
 
@@ -134,6 +143,24 @@ func (r *Room) listenToNotifyevents() {
 
 			}
 
+			if e.eventType == "added_music" {
+				log.Println("Sending added music to other vibers")
+				otherVibers := r.otherVibersInRoom(e.viber)
+				go notifyOthersVibersAboutMusicAdded(otherVibers, e.payload.(*Music))
+			}
+
+		}
+	}
+}
+
+// used to notify other vibers about recently added music
+func notifyOthersVibersAboutMusicAdded(otherVibers []*Viber, music *Music) {
+	log.Println("I am here")
+	for _, v := range otherVibers {
+		log.Println("Sending in loop")
+		v.eventChan <- EventNotifyPayload{
+			eventType: "added_music",
+			payload:   music.extractMusicInfo(),
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/CodexRodney/WeStreamBackend/internal/rooms"
 	"github.com/gorilla/mux"
@@ -160,21 +161,43 @@ func JoinEventsChannel(w http.ResponseWriter, r *http.Request) {
 // used to upload a music file to a specific room
 func UploadMusicFile(w http.ResponseWriter, r *http.Request) {
 
-	roomId, err := strconv.ParseUint(r.FormValue("room_id"), 10, 64)
+	viberId, err := strconv.ParseUint(r.FormValue("viber_id"), 10, 64)
 	if err != nil {
+		log.Println("Heeeere")
 		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	room, ok := rooms.AvailableRooms[roomId]
-	if !ok {
-		respondWithError(w, http.StatusBadRequest, "Room Doesn't Exist")
+	viber := rooms.GetViberFromDanglingVibers(viberId)
+	if viber == nil {
+		respondWithError(w, http.StatusBadRequest, "Viber Doesn't Exist")
 		return
 	}
 
-	file, _, err := r.FormFile("music_file")
+	if viber.GetViberRoom() == nil {
+
+		respondWithError(w, http.StatusBadRequest, "Cannot Add Music, Not In A Room")
+		return
+	}
+
+	// room, ok := rooms.AvailableRooms[roomId]
+	// if !ok {
+	// 	respondWithError(w, http.StatusBadRequest, "Room Doesn't Exist")
+	// 	return
+	// }
+
+	file, handler, err := r.FormFile("music_file")
 	if err != nil {
+		log.Println("Heeeere music file")
 		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !strings.HasSuffix(strings.ToLower(handler.Filename), ".mp3") {
+		respondWithError(
+			w,
+			http.StatusUnsupportedMediaType,
+			"Only MP3 files are allowed",
+		)
 		return
 	}
 	defer file.Close()
@@ -186,6 +209,7 @@ func UploadMusicFile(w http.ResponseWriter, r *http.Request) {
 		64,
 	)
 	if err != nil {
+		log.Println("Heeeere Seconds")
 		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -197,8 +221,15 @@ func UploadMusicFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	room.AddMusicToRoom(
-		rooms.SetMusic(title, durationSecs, artist, file),
+	viber.GetViberRoom().AddMusicToRoom(
+		rooms.SetMusic(
+			title,
+			durationSecs,
+			artist,
+			viber.GetViberUsername(),
+			file,
+		),
+		viber,
 	)
 
 	respondWithJSON(w, http.StatusCreated, map[string]string{"Good": "good"})

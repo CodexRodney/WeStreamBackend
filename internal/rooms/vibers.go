@@ -29,6 +29,11 @@ func (v *Viber) GetViberID() uint64 {
 	return v.id
 }
 
+// retrun vibers username
+func (v *Viber) GetViberUsername() string {
+	return v.username
+}
+
 func (v *Viber) GetViberRoom() *Room {
 	return v.room
 }
