@@ -14,6 +14,16 @@ type NotifyEvent struct {
 	message string
 }
 
+type EventNotify struct {
+	eventType string
+	viber     *Viber
+}
+
+type EventNotifyPayload struct {
+	eventType string
+	payload   interface{}
+}
+
 // Room keeps clients in the same channel together
 type Room struct {
 	Id     uint64
@@ -22,6 +32,7 @@ type Room struct {
 	sync.RWMutex
 	notifyChan      chan NotifyEvent
 	musicNotifyChan chan NotifyEvent
+	eventNotifyChan chan EventNotify
 }
 
 // holds a list of created rooms
@@ -36,9 +47,11 @@ func NewRoom() *Room {
 		musics:          make([]Music, 0),
 		notifyChan:      make(chan NotifyEvent),
 		musicNotifyChan: make(chan NotifyEvent),
+		eventNotifyChan: make(chan EventNotify),
 	}
 	go r.notifyOtherVibersInRoom()
 	go r.streamMusicToAll()
+	go r.listenToNotifyevents()
 	return r
 }
 
@@ -99,6 +112,42 @@ func (r *Room) streamMusicToAll() {
 					// notify users that there is a new song
 				}
 			}
+		}
+	}
+}
+
+// listens for events such as music being added users joining etc
+func (r *Room) listenToNotifyevents() {
+	for {
+		select {
+		case e := <-r.eventNotifyChan:
+			if e.eventType == "joining" {
+				log.Println("I am in joining")
+				// notify other vibers about them joining
+				otherVibers := r.otherVibersInRoom(e.viber)
+				go notifyOthersVibersAboutViberJoining(otherVibers, e.viber)
+				// send viber other vibers in room
+				e.viber.eventChan <- EventNotifyPayload{
+					eventType: "vibers",
+					payload:   otherVibers,
+				}
+
+			}
+
+		}
+	}
+}
+
+// used to notify other vibers about users joining
+func notifyOthersVibersAboutViberJoining(otherVibers []*Viber, viber *Viber) {
+	for _, v := range otherVibers {
+		v.eventChan <- EventNotifyPayload{
+			eventType: "viber_join",
+			payload: map[string]interface{}{
+				"username": viber.username,
+				"viber_id": viber.id,
+				"is_admin": viber.isAdmin,
+			},
 		}
 	}
 }

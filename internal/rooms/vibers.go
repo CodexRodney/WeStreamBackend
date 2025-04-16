@@ -13,12 +13,15 @@ import (
 // the manager that controls all clients.
 type Viber struct {
 	id         uint64
+	username   string
 	isAdmin    bool
 	connection *websocket.Conn
 	musicConn  *websocket.Conn
+	eventConn  *websocket.Conn
 	room       *Room
 	writeChan  chan string
 	musicChan  chan []byte
+	eventChan  chan EventNotifyPayload
 }
 
 // return users Id
@@ -54,10 +57,26 @@ func GetViberFromDanglingVibers(viberId uint64) *Viber {
 	return viber
 }
 
-func NewViber() *Viber {
+func NewViber(username string) *Viber {
 	return &Viber{
-		id: rand.Uint64(),
+		id:       rand.Uint64(),
+		username: username,
 	}
+}
+
+func extractViberInfo(vibers []*Viber) []map[string]interface{} {
+	otherVibers := make([]map[string]interface{}, 0, len(vibers))
+
+	for _, v := range vibers {
+		info := map[string]interface{}{
+			"username": v.username,
+			"id":       v.id,
+			"is_admin": v.isAdmin,
+		}
+		otherVibers = append(otherVibers, info)
+	}
+
+	return otherVibers
 }
 
 func (v *Viber) SetViberUnSetProps(
@@ -83,11 +102,19 @@ func (v *Viber) JoinMusicStream(conn *websocket.Conn) {
 	go v.streamMusicToClient()
 }
 
+func (v *Viber) JoinEventsChannel(conn *websocket.Conn) {
+	v.eventConn = conn
+	v.eventChan = make(chan EventNotifyPayload)
+	// listeners for viber event channel
+	go v.readEventNotifications()
+	go v.writeEventNotifications()
+}
+
 // read commands for music stream
 func (v *Viber) readRoomMusicCommands() {
 	for {
 		_, payload, err := v.musicConn.ReadMessage()
-		log.Println("Command I got", string(payload))
+		log.Println("In Music", string(payload))
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error reading message: %v", err)
@@ -99,12 +126,65 @@ func (v *Viber) readRoomMusicCommands() {
 }
 
 func (v *Viber) streamMusicToClient() {
+	// debug this rule seems datalen might always be 0 and how to reset back to zero
 	for {
 		var dataLen int = 0
 		select {
 		case data := <-v.musicChan:
 			v.musicConn.WriteMessage(websocket.BinaryMessage, data[dataLen:int(len(data))])
 			dataLen = len(data)
+
+		}
+	}
+}
+
+// read messages from clients websocket
+func (v *Viber) readEventNotifications() {
+	for {
+		messageType, payload, err := v.eventConn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("error reading message: %v", err)
+			}
+			break
+		}
+		// client is sending a joining message
+		if string(payload) == "joining" {
+			v.room.eventNotifyChan <- EventNotify{
+				eventType: "joining",
+				viber:     v,
+			}
+		}
+		log.Println("MessageType: ", messageType)
+		log.Println("Payload: ", string(payload))
+	}
+
+}
+
+// notify vibers about events
+func (v *Viber) writeEventNotifications() {
+	for {
+		select {
+		case data := <-v.eventChan:
+			log.Println("The data I have received to send client: ", data)
+			if data.eventType == "vibers" {
+				otherVibers := extractViberInfo(data.payload.([]*Viber))
+				log.Println(otherVibers)
+				err := v.eventConn.WriteJSON(
+					map[string]interface{}{data.eventType: otherVibers},
+				)
+				if err != nil {
+					log.Println("Error while writing: ", err.Error())
+				}
+				continue
+			}
+			err := v.eventConn.WriteJSON(
+				map[string]interface{}{data.eventType: data.payload},
+			)
+			if err != nil {
+				log.Println("Error while writing: ", err.Error())
+			}
+			log.Println("Got here message type is: ", data.eventType)
 
 		}
 	}

@@ -29,8 +29,15 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 
 // used to create a viber
 func GetViberID(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	isValid := isValidUsername(vars["username"])
+	if !isValid {
+		respondWithError(w, http.StatusBadRequest, "Invalid UserName")
+		return
+	}
 	// create viber
-	viber := rooms.NewViber()
+	viber := rooms.NewViber(vars["username"])
 	// add viber to dangling vibers
 	rooms.AddViberToDanglingViber(viber)
 	respondWithJSON(
@@ -111,7 +118,6 @@ func JoinMusicStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Print(viber.GetViberRoom().Id)
 	conn, err := websocketUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
@@ -119,6 +125,36 @@ func JoinMusicStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	viber.JoinMusicStream(conn)
+}
+
+func JoinEventsChannel(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	viberId, err := strconv.ParseUint(vars["viber_id"], 10, 64)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	viber := rooms.GetViberFromDanglingVibers(viberId)
+	if viber == nil {
+		respondWithError(w, http.StatusBadRequest, "Viber Doesn't Exist")
+		return
+	}
+
+	if viber.GetViberRoom() == nil {
+
+		respondWithError(w, http.StatusBadRequest, "Cannot Join Channel Not In A Room")
+		return
+	}
+
+	conn, err := websocketUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println(err)
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+	}
+
+	viber.JoinEventsChannel(conn)
 }
 
 // used to upload a music file to a specific room
