@@ -153,19 +153,6 @@ func (v *Viber) readEventNotifications() {
 			}
 			break
 		}
-		// client is sending a joining message
-		// if string(payload) == "joining" {
-		// 	v.room.eventNotifyChan <- EventNotify{
-		// 		eventType: "joining",
-		// 		viber:     v,
-		// 	}
-		// }
-		// // client is sending a message to get all message
-		// if string(payload) == "get_musics" {
-		// 	v.room.eventNotifyChan <- EventNotify{
-		// 		eventType: "get_musics",
-		// 		viber:     v,
-		// 	}
 		// }
 		v.room.eventNotifyChan <- EventNotify{
 			eventType: string(payload),
