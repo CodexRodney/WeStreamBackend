@@ -5,6 +5,8 @@ import (
 	"log"
 	"math/rand"
 	"sync"
+
+	"github.com/gorilla/websocket"
 )
 
 // NotifyEvent represents an event that contains a reference
@@ -111,8 +113,8 @@ func (r *Room) streamMusicToAll() {
 							// send to all clients read bytes
 							for v, c := range r.vibers {
 								if c {
-									// v.musicConn.WriteMessage(websocket.BinaryMessage, buffer[:n])
-									v.musicChan <- buffer[:n]
+									v.musicConn.WriteMessage(websocket.BinaryMessage, buffer[:n])
+									// v.musicChan <- buffer[:n]
 
 								}
 							}

@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Pre-configure the upgrader, which is responsible for upgrading
+// Pre-configure the upgrader, which is responsible for uprandgrading
 // an HTTP connection to a WebSocket connection.
 var (
 	websocketUpgrader = websocket.Upgrader{
