@@ -149,6 +149,17 @@ func (r *Room) listenToNotifyevents() {
 				go notifyOthersVibersAboutMusicAdded(otherVibers, e.payload.(*Music))
 			}
 
+			if e.eventType == "get_musics" {
+				log.Println("Sending all available music in room to client")
+				availableMusicInRoom := r.GetMusicsFromRoom()
+				availableMusicInRoomInfo := ExtractMusicInfo(availableMusicInRoom)
+				e.viber.eventChan <- EventNotifyPayload{
+					eventType: "get_musics",
+					payload:   availableMusicInRoomInfo,
+				}
+
+			}
+
 		}
 	}
 }
